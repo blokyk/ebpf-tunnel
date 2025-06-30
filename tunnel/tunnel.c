@@ -111,7 +111,8 @@ int join_fds(void *arg) {
     return 0;
 }
 
-void handle_connection(int conn_fd) {
+int handle_connection(void *arg) {
+    int conn_fd = *(int*)arg;
     int res;
 
     trace("Opening socket to real proxy @ %s:%d for child %d\n", PROXY_HOST, PROXY_PORT, getpid());
@@ -120,16 +121,16 @@ void handle_connection(int conn_fd) {
     int proxy_fd = open_connection(PROXY_HOST, PROXY_PORT);
     if (proxy_fd < 0) {
         fprintf(stderr, "Couldn't open connection to real proxy\n");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     if (!send_conn_req(conn_fd, proxy_fd))
-        exit(ECOMM);
+        return ECOMM;
 
     trace("Sent connection request to proxy");
 
     if (!confirm_handshake(proxy_fd))
-        exit(ECOMM);
+        return ECOMM;
 
     trace("Got valid response from proxy, fully connected now");
 
@@ -143,6 +144,8 @@ void handle_connection(int conn_fd) {
 
     thrd_join(conn_to_proxy_thread, &res);
     thrd_join(proxy_to_conn_thread, &res);
+
+    return 0;
 }
 
 int main(void) {
@@ -158,7 +161,7 @@ int main(void) {
 
     debug("Opening tunnel on port %d\n", TUNNEL_PORT);
 
-    int listening_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int listening_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listening_fd == 0) {
         perror("Couldn't acquire a socket for tunnel");
         exit(EXIT_FAILURE);
@@ -166,6 +169,7 @@ int main(void) {
 
     // #ifndef DEBUG
         bool reuse_addr = true;
+        setsockopt(listening_fd, SOL_SOCKET, SO_REUSEPORT, &reuse_addr, sizeof(reuse_addr));
         setsockopt(listening_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr));
     // #endif // DEBUG
 
@@ -195,8 +199,8 @@ int main(void) {
 
     int conn_fd;
     while ((conn_fd = accept(listening_fd, (struct sockaddr*)&addr, &addr_len))) {
-        // if (fork() == 0)
-            handle_connection(conn_fd);
+        thrd_t conn_thread;
+        thrd_create(&conn_thread, &handle_connection, &conn_fd);
     }
 
     perror("Intermediate proxy couldn't accept()");
