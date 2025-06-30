@@ -56,10 +56,16 @@ run-tunnel: bin/proxy-tunnel
 bin/proxy-tunnel: bin/$(TUNNEL)-tunnel
 	cp $< $@
 
-.PHONY: go-rerouter/tunnel
+.PHONY: go-tunnel/tunnel
 go-tunnel/tunnel:
 	$(MAKE) -C go-tunnel tunnel
 bin/go-tunnel: go-tunnel/tunnel bin/
+	cp $< $@
+
+.PHONY: c-tunnel/tunnel
+c-tunnel/tunnel:
+	$(MAKE) -C c-tunnel/ tunnel
+bin/c-tunnel: c-tunnel/tunnel bin/
 	cp $< $@
 
 %/:
