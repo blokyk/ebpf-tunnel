@@ -115,14 +115,15 @@ func getPidFromPort(proxyPort uint16) (uint32, error) {
 		inode, err := strconv.Atoi(fields[9])
 		if err != nil {
 			return 0, fmt.Errorf(
-				"found /proc/net/tcp entry with real proxy's port (%d) but couldn't read its inode (got '%s'): %w",
+				"found /proc/net/tcp entry with process's port (%d) but couldn't read its inode (got '%s'): %w",
 				proxyPort, fields[9], err,
 			)
 		}
 
 		proxyPid, err := getPidFromInode(inode)
 		if err != nil {
-			return 0, fmt.Errorf("got inode for real proxy, but couldn't find its PID: %w", err)
+			// generally means we couldn't
+			return 0, errors.Join(ErrNoProcessForPort, fmt.Errorf("got inode for process, but couldn't find its PID: %w", err))
 		}
 
 		return uint32(proxyPid), nil
