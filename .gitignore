@@ -8,8 +8,8 @@
 # Ignore binaries
 go-rerouter/ebpf-rerouter
 go-tunnel/tunnel
-tunnel/connect
-tunnel/tunnel
+c-tunnel/connect
+c-tunnel/tunnel
 bin/
 
 # IDE folder
