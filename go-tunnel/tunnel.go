@@ -17,9 +17,7 @@ import (
 )
 
 const (
-	TUNNEL_PORT     = 18000 // Port where the tunnel (in go or c) listens
-	REAL_PROXY_PORT = 8080  // Port where the real proxy (cntlm) listens
-	SO_ORIGINAL_DST = 80    // Socket option to get the original destination address
+	SO_ORIGINAL_DST = 80 // Socket option to get the original destination address
 	TIMEOUT         = 5 * time.Second
 )
 
@@ -95,17 +93,43 @@ func handleConnection(proxyDialer proxy.Dialer, conn net.Conn) {
 	}
 }
 
+func printUsage(msg string) {
+	log.Fatalf("Error: %s\nUsage: %s <proxy port> <tunnel port>", msg, os.Args[0])
+}
+
+func parseArgs() (proxyPort uint16, tunnelPort uint16) {
+	if len(os.Args) != 3 {
+		printUsage("Not enough arguments provided")
+	}
+
+	n, err := fmt.Sscanf(os.Args[1], "%d", &proxyPort)
+
+	if err != nil || n != 1 {
+		printUsage("Proxy port could not be parsed as a uint16")
+	}
+
+	n, err = fmt.Sscanf(os.Args[2], "%d", &tunnelPort)
+
+	if err != nil || n != 1 {
+		printUsage("Tunnel port could not be parsed as a uint16")
+	}
+
+	return proxyPort, tunnelPort
+}
+
 func main() {
+	proxyPort, tunnelPort := parseArgs()
+
 	// Start the proxy server on the localhost
 	// We only demonstrate IPv4 in this example, but the same approach can be used for IPv6
-	bpfProxyAddr := fmt.Sprintf("127.0.0.1:%d", TUNNEL_PORT)
+	bpfProxyAddr := fmt.Sprintf("127.0.0.1:%d", tunnelPort)
 	bpfListener, err := net.Listen("tcp", bpfProxyAddr)
 	if err != nil {
 		log.Fatalf("Failed to start proxy server: %v", err)
 	}
 	defer bpfListener.Close()
 
-	realProxyAddr := fmt.Sprintf("http://127.0.0.1:%d", REAL_PROXY_PORT)
+	realProxyAddr := fmt.Sprintf("http://127.0.0.1:%d", proxyPort)
 	realProxyUrl, err := url.Parse(realProxyAddr)
 	if err != nil {
 		log.Fatalf("Invalid proxy url: %v", err)

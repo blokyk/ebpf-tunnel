@@ -18,19 +18,22 @@
 
 #include "utils.h"
 
-#define TUNNEL_PORT 18000
 #define PROXY_HOST "127.0.0.1"
-#define PROXY_PORT 8080
 
 #define TUNNEL_BUFF_SIZE 4098
 
 // Maximum length of the string representation of a (16-bit) port, including terminating \0
 #define INET_PORTSTRLEN 6
 
+uint16_t proxy_port;
+uint16_t tunnel_port;
+
 bool send_conn_req(int conn_fd, int proxy_fd) {
     struct sockaddr_in original_dst = get_original_dst(conn_fd);
     char *original_addr = inet_ntoa(original_dst.sin_addr);
     in_port_t original_port = ntohs(original_dst.sin_port);
+
+    trace("Sending CONNECT request for %1$s:%2$d\n", original_addr, original_port);
 
     static const char connect_req_template[] =
         "CONNECT %1$s:%2$d HTTP/1.1\r\n"
@@ -118,7 +121,7 @@ int handle_connection(void *arg) {
     trace("Opening socket to real proxy @ %s:%d for child %d\n", PROXY_HOST, PROXY_PORT, getpid());
 
     // yes, we do need to open a new socket for each child (see #9)
-    int proxy_fd = open_connection(PROXY_HOST, PROXY_PORT);
+    int proxy_fd = open_connection(PROXY_HOST, proxy_port);
     if (proxy_fd < 0) {
         fprintf(stderr, "Couldn't open connection to real proxy\n");
         return EXIT_FAILURE;
@@ -148,8 +151,32 @@ int handle_connection(void *arg) {
     return 0;
 }
 
-int main(void) {
+void print_usage(char *msg, const char *argv0) {
+    fprintf(stderr, "Error: %s\n", msg);
+    fprintf(stderr, "Usage: %s <proxy port> <tunnel port>\n");
+    exit(1);
+}
+
+void parse_args(
+    int argc, const char* const* argv,
+    uint16_t *proxyPort, uint16_t *tunnelPort
+) {
+    if (argc != 3)
+        print_usage("Not enough arguments provided", argv[0]);
+
+    int res = sscanf(argv[1], "%hd", proxyPort);
+    if (res != 1)
+        print_usage("Proxy port could not be parsed as a uint16", argv[0]);
+
+    res = sscanf(argv[2], "%hd", proxyPort);
+    if (res != 1)
+        print_usage("Tunnel port could not be parsed as a uint16", argv[0]);
+}
+
+int main(int argc, const char* const* argv) {
     int res;
+
+    parse_args(argc, argv, &proxy_port, &tunnel_port);
 
     // write(2) and read(2) send a SIGPIPE error by default
     // when called on a closed socket, but we'd like to handle
@@ -168,14 +195,15 @@ int main(void) {
     }
 
     // #ifndef DEBUG
-        bool reuse_addr = true;
-        setsockopt(listening_fd, SOL_SOCKET, SO_REUSEPORT, &reuse_addr, sizeof(reuse_addr));
-        setsockopt(listening_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr));
+        bool true_ref = true;
+        setsockopt(listening_fd, SOL_SOCKET, SO_REUSEPORT, &true_ref, sizeof(true_ref));
+        setsockopt(listening_fd, SOL_SOCKET, SO_REUSEADDR, &true_ref, sizeof(true_ref));
+        setsockopt(listening_fd, SOL_IP, IP_TRANSPARENT, &true_ref, sizeof(true_ref));
     // #endif // DEBUG
 
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
-        .sin_port   = htons(TUNNEL_PORT),
+        .sin_port   = htons(tunnel_port),
         .sin_addr   = INADDR_ANY,
         .sin_zero   = {0},
     };
