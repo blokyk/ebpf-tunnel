@@ -25,6 +25,8 @@ help:
 	@echo '                  systemd/README for more info. Requires sudo.'
 	@echo
 	@echo 'Development targets:'
+	@echo '  - rerouter      Build the eBPF rerouter into bin/ebpf-rerouter'
+	@echo '  - tunnel        Build the tunnel into bin/proxy-tunnel'
 	@echo '  - run-rerouter  Run the eBPF rerouter'
 	@echo '  - run-tunnel    Run the tunnel'
 	@echo
